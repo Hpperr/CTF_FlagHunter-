@@ -5,7 +5,6 @@ AI-Powered | Real-Time Monitoring | Auto Brute-Force | Smart Caching
 Author: F1REW0LF
 License: MIT - Free for Community
 Version: 5.0.0
-Score: 10/10 - APT Grade
 """
 
 import sys
@@ -114,8 +113,7 @@ def print_banner():
                                                                     
 {Colors.RED}{Colors.BOLD}    ULTIMATE EDUCATIONAL CTF AUTOMATION v5.0{Colors.WHITE}
 {Colors.YELLOW}{Colors.BOLD}    AI-Powered | Real-Time | Auto Brute-Force{Colors.WHITE}
-{Colors.GOLD}    Version {VERSION} | Author: {AUTHOR} | Score: {SCORE}{Colors.WHITE}
-"""
+{Colors.GOLD}    Version {VERSION} | Author: {AUTHOR} 
     print(banner)
 
 # ============================[ INTELLIGENT CACHING ENGINE ]================================
