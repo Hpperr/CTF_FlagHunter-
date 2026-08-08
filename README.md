@@ -1,4 +1,4 @@
-# CTF_Flag_Hunter v5.0
+# CTF_Flag_Hunter v5.2
 
 **Ultimate Educational CTF Automation Framework with Encryption**
 
@@ -10,7 +10,7 @@
 
 ## Overview
 
-CTF_Flag_Hunter v5.0 is an educational automation framework for CTF and lab environments. It features multi-layer decryption, auto-solving, intelligent detection, and **SECURE DATA HANDLING** with encryption.
+CTF_Flag_Hunter v5.2 is an educational automation framework for CTF and lab environments. It features multi-layer decryption, auto-solving, intelligent detection, and **SECURE DATA HANDLING** with encryption.
 
 ### Author
 **F1REW0LF** - CTF & Security Research
