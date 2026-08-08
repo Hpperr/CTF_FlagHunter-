@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-CTF_Flag_Hunter v5.1 - Lightweight CTF Automation Framework
-Live Output Only | No Storage | Real-Time 
+CTF_Hunter v5.2 - File Input & Task Analysis
+Live Output | File Support | Task Processing 
 Author: F1REW0LF
 License: MIT - Free for Community
-Version: 5.1.0
+Version: 5.2.0
 """
 
 import sys
@@ -70,7 +70,7 @@ except ImportError:
     SSH_AVAILABLE = False
 
 # ============================[ VERSION & CONFIGURATION ]================================
-VERSION = "5.1.0"
+VERSION = "5.2.0"
 AUTHOR = "F1REW0LF"
 LICENSE = "MIT - Free for Community"
 
@@ -105,10 +105,207 @@ def print_banner():
     ╚██████╗   ██║   ██║         ██║     ███████╗██║  ██║╚██████╔╝
      ╚═════╝   ╚═╝   ╚═╝         ╚═╝     ╚══════╝╚═╝  ╚═╝ ╚═════╝ 
                                                                     
-{Colors.RED}{Colors.BOLD}    LIGHTWEIGHT CTF AUTOMATION v5.1{Colors.WHITE}
-{Colors.YELLOW}{Colors.BOLD}    Live Output | No Storage | Real-Time{Colors.WHITE}
-{Colors.GOLD}    Version {VERSION} | Author: {AUTHOR}
+{Colors.RED}{Colors.BOLD}    FILE INPUT & TASK ANALYSIS v5.2{Colors.WHITE}
+{Colors.YELLOW}{Colors.BOLD}    Live Output | Task Files | Auto-Process{Colors.WHITE}
+{Colors.GOLD}    Version {VERSION} | Author: {AUTHOR} 
+"""
     print(banner)
+
+# ============================[ TASK FILE PARSER ]================================
+
+class TaskFileParser:
+    """
+    Parse task files from CTF labs
+    """
+    
+    def __init__(self):
+        self.task_patterns = {
+            'flag_file': [
+                r'(?:local|root|user|flag|proof)[\s_-]*(?:\.txt|\.flag)?',
+                r'what is the ([\w_\-\.]+) flag',
+                r'find the ([\w_\-\.]+) file',
+                r'cat ([\w_\-\.]+)',
+                r'read ([\w_\-\.]+)'
+            ],
+            'target': [
+                r'at (https?://[^\s]+)',
+                r'on (https?://[^\s]+)',
+                r'http[s]?://[^\s]+',
+                r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}'
+            ],
+            'platform': [
+                r'\[(hackthebox|tryhackme|bugcrowd|vulnhub|picoctf|overthewire)\]',
+                r'on (hackthebox|tryhackme|bugcrowd|vulnhub|picoctf|overthewire)'
+            ],
+            'question': [
+                r'Question: (.+?)(?:\n|$)',
+                r'Task: (.+?)(?:\n|$)',
+                r'What is (.+?)\?',
+                r'Find (.+?)(?:\n|$)'
+            ],
+            'flag_format': [
+                r'format: ([A-Z]+)\{',
+                r'flag format: ([A-Z]+)\{',
+                r'\[([A-Z]+)\{[^}]+\}\]'
+            ]
+        }
+        
+    def parse(self, filepath: str) -> Dict:
+        """
+        Parse task file and extract information
+        """
+        result = {
+            'file': filepath,
+            'targets': [],
+            'flag_files': [],
+            'questions': [],
+            'platform': 'auto',
+            'flag_format': None,
+            'raw_content': '',
+            'tasks': []
+        }
+        
+        try:
+            with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read()
+                result['raw_content'] = content
+                
+                lines = content.split('\n')
+                
+                # Parse each line
+                for line in lines:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    
+                    # Skip comments
+                    if line.startswith(('#', '//', ';')):
+                        continue
+                    
+                    # Extract targets
+                    targets = self._extract_targets(line)
+                    if targets:
+                        result['targets'].extend(targets)
+                    
+                    # Extract flag files
+                    flag_files = self._extract_flag_files(line)
+                    if flag_files:
+                        result['flag_files'].extend(flag_files)
+                    
+                    # Extract questions
+                    question = self._extract_question(line)
+                    if question:
+                        result['questions'].append(question)
+                    
+                    # Extract platform
+                    platform = self._extract_platform(line)
+                    if platform:
+                        result['platform'] = platform
+                    
+                    # Extract flag format
+                    flag_format = self._extract_flag_format(line)
+                    if flag_format:
+                        result['flag_format'] = flag_format
+                
+                # Build tasks
+                result['tasks'] = self._build_tasks(result)
+                
+        except Exception as e:
+            cprint(f"[!] Error parsing file: {e}", Colors.RED)
+            result['error'] = str(e)
+        
+        return result
+    
+    def _extract_targets(self, line: str) -> List[str]:
+        """Extract target URLs/IPs from line"""
+        targets = []
+        
+        for pattern in self.task_patterns['target']:
+            matches = re.findall(pattern, line, re.IGNORECASE)
+            for match in matches:
+                if match and isinstance(match, str):
+                    if not match.startswith(('http://', 'https://')):
+                        match = 'https://' + match
+                    targets.append(match)
+        
+        return list(set(targets))
+    
+    def _extract_flag_files(self, line: str) -> List[str]:
+        """Extract flag file names from line"""
+        files = []
+        
+        for pattern in self.task_patterns['flag_file']:
+            matches = re.findall(pattern, line, re.IGNORECASE)
+            for match in matches:
+                if match:
+                    # Clean up the match
+                    if isinstance(match, tuple):
+                        match = match[0]
+                    # If it's a description, extract the file name
+                    file_match = re.search(r'([\w_\-\.]+\.(?:txt|flag))', match)
+                    if file_match:
+                        files.append(file_match.group(1))
+                    else:
+                        # Try to extract common flag files
+                        common_files = ['flag.txt', 'user.txt', 'root.txt', 'local.txt', 'proof.txt']
+                        for f in common_files:
+                            if f in match.lower():
+                                files.append(f)
+        
+        return list(set(files)) if files else ['flag.txt', 'user.txt', 'root.txt']
+    
+    def _extract_question(self, line: str) -> Optional[str]:
+        """Extract question from line"""
+        for pattern in self.task_patterns['question']:
+            match = re.search(pattern, line, re.IGNORECASE)
+            if match:
+                return match.group(1).strip()
+        return None
+    
+    def _extract_platform(self, line: str) -> Optional[str]:
+        """Extract platform from line"""
+        for pattern in self.task_patterns['platform']:
+            match = re.search(pattern, line, re.IGNORECASE)
+            if match:
+                return match.group(1).lower()
+        return None
+    
+    def _extract_flag_format(self, line: str) -> Optional[str]:
+        """Extract flag format from line"""
+        for pattern in self.task_patterns['flag_format']:
+            match = re.search(pattern, line, re.IGNORECASE)
+            if match:
+                return match.group(1).upper()
+        return None
+    
+    def _build_tasks(self, parsed: Dict) -> List[Dict]:
+        """Build task objects from parsed data"""
+        tasks = []
+        
+        targets = parsed.get('targets', [])
+        flag_files = parsed.get('flag_files', ['flag.txt', 'user.txt', 'root.txt'])
+        questions = parsed.get('questions', [])
+        
+        # If no targets, try to find from content
+        if not targets:
+            content = parsed.get('raw_content', '')
+            ip_match = re.search(r'\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b', content)
+            if ip_match:
+                targets.append(f"https://{ip_match.group(1)}")
+        
+        # Build tasks
+        for target in targets:
+            for flag_file in flag_files:
+                task = {
+                    'target': target,
+                    'flag_file': flag_file,
+                    'question': questions[0] if questions else None,
+                    'platform': parsed.get('platform', 'auto'),
+                    'flag_format': parsed.get('flag_format')
+                }
+                tasks.append(task)
+        
+        return tasks
 
 # ============================[ SMART CACHE ]================================
 
@@ -433,6 +630,7 @@ class FlagHunter:
         self.cache = SmartCache()
         self.bruteforce = AutoBruteForce()
         self.processor = OptimizedParallelProcessor()
+        self.parser = TaskFileParser()
         self.session = self._create_session()
         self.platforms = {
             'hackthebox': {'files': ['flag.txt', 'user.txt', 'root.txt'], 'format': r'HTB\{[^}]+\}'},
@@ -450,17 +648,60 @@ class FlagHunter:
         s.headers.update({'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'})
         return s
     
-    def hunt(self, target: str, platform: str = 'auto', question: str = None, brute: bool = True) -> Dict:
-        result = {'target': target, 'platform': platform, 'flags': [], 'decrypted': [], 'success': False}
+    def hunt_from_file(self, filepath: str) -> Dict:
+        """
+        Hunt flags using task file
+        """
+        cprint(f"\n[*] Processing task file: {filepath}", Colors.BLUE)
         
-        cprint(f"\n[*] Hunting: {target}", Colors.BLUE)
+        parsed = self.parser.parse(filepath)
+        
+        if 'error' in parsed:
+            cprint(f"[-] Error: {parsed['error']}", Colors.RED)
+            return parsed
+        
+        cprint(f"[+] Found {len(parsed['targets'])} target(s)", Colors.GREEN)
+        cprint(f"[+] Found {len(parsed['flag_files'])} flag file(s)", Colors.GREEN)
+        cprint(f"[+] Found {len(parsed['questions'])} question(s)", Colors.GREEN)
+        cprint(f"[+] Platform: {parsed['platform']}", Colors.CYAN)
+        
+        if parsed['flag_format']:
+            cprint(f"[+] Flag format: {parsed['flag_format']}", Colors.GOLD)
+        
+        results = {}
+        
+        for task in parsed['tasks']:
+            target = task['target']
+            flag_file = task['flag_file']
+            question = task['question']
+            platform = task['platform']
+            
+            cprint(f"\n[*] Task: {target} → {flag_file}", Colors.PURPLE)
+            
+            result = self.hunt(target, platform, question, flag_files=[flag_file], brute_force=True)
+            results[f"{target}_{flag_file}"] = result
+        
+        return {
+            'parsed': parsed,
+            'results': results,
+            'total_tasks': len(parsed['tasks']),
+            'successful': sum(1 for r in results.values() if r.get('success', False))
+        }
+    
+    def hunt(self, target: str, platform: str = 'auto', question: str = None, 
+             flag_files: List[str] = None, brute_force: bool = True) -> Dict:
+        """
+        Hunt flags from target
+        """
+        result = {'target': target, 'platform': platform, 'question': question, 
+                  'flags': [], 'decrypted': [], 'success': False}
         
         if platform == 'auto':
             platform = self._detect_platform(target)
-            cprint(f"[+] Platform: {platform}", Colors.GREEN)
         
         config = self.platforms.get(platform, {'files': ['flag.txt', 'user.txt', 'root.txt']})
-        flag_files = config['files']
+        if not flag_files:
+            flag_files = config['files']
         
         if question:
             match = re.search(r'(local\.txt|root\.txt|flag\.txt|user\.txt)', question, re.IGNORECASE)
@@ -478,7 +719,7 @@ class FlagHunter:
             for f in flag_files:
                 tasks.append({'type': 'file', 'target': target, 'file': f})
         
-        if brute and len(tasks) < 30:
+        if brute_force and len(tasks) < 30:
             tasks.append({'type': 'bruteforce', 'target': target})
         
         self.processor.monitor.set_total(len(tasks))
@@ -601,38 +842,49 @@ class CTF_Hunter:
         print(f"""
 {Colors.BLUE}{'='*55}{Colors.WHITE}
 {Colors.BOLD}CTF_Hunter v{VERSION}{Colors.WHITE}
-{Colors.CYAN}Live Output | No Storage | Real-Time{Colors.WHITE}
+{Colors.CYAN}File Input | Live Output | No Storage{Colors.WHITE}
 {Colors.YELLOW}Author: {AUTHOR} | Score: {SCORE}{Colors.WHITE}
 {Colors.BLUE}{'='*55}{Colors.WHITE}
-{Colors.GREEN}[1] Hunt Flags (Auto){Colors.WHITE}
-{Colors.GREEN}[2] Hunt Flags (Manual File){Colors.WHITE}
-{Colors.GREEN}[3] Decrypt Flag{Colors.WHITE}
-{Colors.RED}[4] Exit{Colors.WHITE}
+{Colors.GREEN}[1] Hunt from File (Task File){Colors.WHITE}
+{Colors.GREEN}[2] Hunt Single Target{Colors.WHITE}
+{Colors.GREEN}[3] Hunt with Question{Colors.WHITE}
+{Colors.GREEN}[4] Decrypt Flag{Colors.WHITE}
+{Colors.RED}[5] Exit{Colors.WHITE}
 """)
     
     def run(self):
         print_banner()
-        cprint("[*] CTF_Hunter v5.1 - Live CTF Automation", Colors.CYAN)
-        cprint("[*] No logs | No reports | Just results", Colors.DIM)
+        cprint("[*] CTF_Hunter v5.2 - File Input & Task Analysis", Colors.CYAN)
+        cprint("[*] Parse task files | Auto-process | Live results", Colors.DIM)
         
         while self.running:
             self.show_menu()
             choice = input(f"{Colors.CYAN}[>] Select: {Colors.WHITE}").strip()
             
             if choice == '1':
+                filepath = input("[>] Task file path: ").strip()
+                if os.path.exists(filepath):
+                    result = self.hunter.hunt_from_file(filepath)
+                    print("\n[+] Summary:")
+                    cprint(f"  Total tasks: {result.get('total_tasks', 0)}", Colors.CYAN)
+                    cprint(f"  Successful: {result.get('successful', 0)}", Colors.GREEN)
+                else:
+                    cprint("[-] File not found", Colors.RED)
+                
+            elif choice == '2':
                 target = input("[>] Target: ").strip()
                 platform = input("[>] Platform (auto/hackthebox/tryhackme/bugcrowd/vulnhub/picoctf/overthewire): ").strip() or 'auto'
                 brute = input("[>] Brute-force? (Y/n): ").strip().lower() != 'n'
                 self.hunter.hunt(target, platform, brute_force=brute)
                 
-            elif choice == '2':
+            elif choice == '3':
                 target = input("[>] Target: ").strip()
                 platform = input("[>] Platform: ").strip() or 'auto'
                 question = input("[>] Question/Description: ").strip()
                 brute = input("[>] Brute-force? (Y/n): ").strip().lower() != 'n'
-                self.hunter.hunt(target, platform, question, brute)
+                self.hunter.hunt(target, platform, question, brute_force=brute)
                 
-            elif choice == '3':
+            elif choice == '4':
                 data = input("[>] Encoded flag: ").strip()
                 platform = input("[>] Platform: ").strip() or 'auto'
                 result = MultiLayerDecryption().decrypt(data, platform)
@@ -642,7 +894,7 @@ class CTF_Hunter:
                 else:
                     cprint("[-] Failed to decrypt", Colors.RED)
                 
-            elif choice == '4':
+            elif choice == '5':
                 cprint("[*] Goodbye", Colors.GREEN)
                 break
             else:
@@ -651,7 +903,8 @@ class CTF_Hunter:
 # ============================[ COMMAND LINE ]================================
 
 def main():
-    parser = argparse.ArgumentParser(description="CTF_Hunter v5.1 - Live CTF Automation")
+    parser = argparse.ArgumentParser(description="CTF_Hunter v5.2 - File Input & Task Analysis")
+    parser.add_argument("-f", "--file", help="Task file to process")
     parser.add_argument("-t", "--target", help="Target URL/IP/File")
     parser.add_argument("-p", "--platform", default="auto", help="Platform")
     parser.add_argument("-q", "--question", help="Question/Description")
@@ -659,6 +912,15 @@ def main():
     parser.add_argument("--no-brute", action="store_true", help="Disable brute-force")
     
     args = parser.parse_args()
+    
+    if args.file:
+        print_banner()
+        hunter = FlagHunter()
+        result = hunter.hunt_from_file(args.file)
+        print("\n[+] Summary:")
+        cprint(f"  Total tasks: {result.get('total_tasks', 0)}", Colors.CYAN)
+        cprint(f"  Successful: {result.get('successful', 0)}", Colors.GREEN)
+        sys.exit(0)
     
     if args.decrypt:
         print_banner()
@@ -673,7 +935,7 @@ def main():
     if args.target:
         print_banner()
         hunter = FlagHunter()
-        hunter.hunt(args.target, args.platform, args.question, not args.no_brute)
+        hunter.hunt(args.target, args.platform, args.question, brute_force=not args.no_brute)
         sys.exit(0)
     
     # Interactive
