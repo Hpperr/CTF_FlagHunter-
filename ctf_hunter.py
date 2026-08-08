@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-CTF_Hunter v5.2 - File Input & Task Analysis
-Live Output | File Support | Task Processing 
+CTF_Hunter v5.3 - Ultimate CTF Automation Framework
+Live Output | File Support | Task Processing | Multi-Platform
 Author: F1REW0LF
 License: MIT - Free for Community
-Version: 5.2.0
+Version: 5.3.0
 """
 
 import sys
@@ -70,7 +70,7 @@ except ImportError:
     SSH_AVAILABLE = False
 
 # ============================[ VERSION & CONFIGURATION ]================================
-VERSION = "5.2.0"
+VERSION = "5.3.0"
 AUTHOR = "F1REW0LF"
 LICENSE = "MIT - Free for Community"
 
@@ -105,9 +105,9 @@ def print_banner():
     ╚██████╗   ██║   ██║         ██║     ███████╗██║  ██║╚██████╔╝
      ╚═════╝   ╚═╝   ╚═╝         ╚═╝     ╚══════╝╚═╝  ╚═╝ ╚═════╝ 
                                                                     
-{Colors.RED}{Colors.BOLD}    FILE INPUT & TASK ANALYSIS v5.2{Colors.WHITE}
-{Colors.YELLOW}{Colors.BOLD}    Live Output | Task Files | Auto-Process{Colors.WHITE}
-{Colors.GOLD}    Version {VERSION} | Author: {AUTHOR} 
+{Colors.RED}{Colors.BOLD}    ULTIMATE CTF AUTOMATION v{VERSION}{Colors.WHITE}
+{Colors.YELLOW}{Colors.BOLD}    File Input | Live Output | Multi-Platform{Colors.WHITE}
+{Colors.GOLD}    Version {VERSION} | Author: {AUTHOR}{Colors.WHITE}
 """
     print(banner)
 
@@ -172,42 +172,34 @@ class TaskFileParser:
                 
                 lines = content.split('\n')
                 
-                # Parse each line
                 for line in lines:
                     line = line.strip()
                     if not line:
                         continue
                     
-                    # Skip comments
                     if line.startswith(('#', '//', ';')):
                         continue
                     
-                    # Extract targets
                     targets = self._extract_targets(line)
                     if targets:
                         result['targets'].extend(targets)
                     
-                    # Extract flag files
                     flag_files = self._extract_flag_files(line)
                     if flag_files:
                         result['flag_files'].extend(flag_files)
                     
-                    # Extract questions
                     question = self._extract_question(line)
                     if question:
                         result['questions'].append(question)
                     
-                    # Extract platform
                     platform = self._extract_platform(line)
                     if platform:
                         result['platform'] = platform
                     
-                    # Extract flag format
                     flag_format = self._extract_flag_format(line)
                     if flag_format:
                         result['flag_format'] = flag_format
                 
-                # Build tasks
                 result['tasks'] = self._build_tasks(result)
                 
         except Exception as e:
@@ -217,7 +209,6 @@ class TaskFileParser:
         return result
     
     def _extract_targets(self, line: str) -> List[str]:
-        """Extract target URLs/IPs from line"""
         targets = []
         
         for pattern in self.task_patterns['target']:
@@ -231,22 +222,18 @@ class TaskFileParser:
         return list(set(targets))
     
     def _extract_flag_files(self, line: str) -> List[str]:
-        """Extract flag file names from line"""
         files = []
         
         for pattern in self.task_patterns['flag_file']:
             matches = re.findall(pattern, line, re.IGNORECASE)
             for match in matches:
                 if match:
-                    # Clean up the match
                     if isinstance(match, tuple):
                         match = match[0]
-                    # If it's a description, extract the file name
                     file_match = re.search(r'([\w_\-\.]+\.(?:txt|flag))', match)
                     if file_match:
                         files.append(file_match.group(1))
                     else:
-                        # Try to extract common flag files
                         common_files = ['flag.txt', 'user.txt', 'root.txt', 'local.txt', 'proof.txt']
                         for f in common_files:
                             if f in match.lower():
@@ -255,7 +242,6 @@ class TaskFileParser:
         return list(set(files)) if files else ['flag.txt', 'user.txt', 'root.txt']
     
     def _extract_question(self, line: str) -> Optional[str]:
-        """Extract question from line"""
         for pattern in self.task_patterns['question']:
             match = re.search(pattern, line, re.IGNORECASE)
             if match:
@@ -263,7 +249,6 @@ class TaskFileParser:
         return None
     
     def _extract_platform(self, line: str) -> Optional[str]:
-        """Extract platform from line"""
         for pattern in self.task_patterns['platform']:
             match = re.search(pattern, line, re.IGNORECASE)
             if match:
@@ -271,7 +256,6 @@ class TaskFileParser:
         return None
     
     def _extract_flag_format(self, line: str) -> Optional[str]:
-        """Extract flag format from line"""
         for pattern in self.task_patterns['flag_format']:
             match = re.search(pattern, line, re.IGNORECASE)
             if match:
@@ -279,21 +263,18 @@ class TaskFileParser:
         return None
     
     def _build_tasks(self, parsed: Dict) -> List[Dict]:
-        """Build task objects from parsed data"""
         tasks = []
         
         targets = parsed.get('targets', [])
         flag_files = parsed.get('flag_files', ['flag.txt', 'user.txt', 'root.txt'])
         questions = parsed.get('questions', [])
         
-        # If no targets, try to find from content
         if not targets:
             content = parsed.get('raw_content', '')
             ip_match = re.search(r'\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b', content)
             if ip_match:
                 targets.append(f"https://{ip_match.group(1)}")
         
-        # Build tasks
         for target in targets:
             for flag_file in flag_files:
                 task = {
@@ -825,11 +806,62 @@ class FlagHunter:
         printable = sum(1 for c in content if c.isprintable())
         return printable / len(content) > 0.8
 
+# ============================[ BATCH PROCESSOR ]================================
+
+class BatchProcessor:
+    """
+    Process multiple task files at once
+    """
+    
+    def __init__(self):
+        self.hunter = FlagHunter()
+        self.results = {}
+        
+    def process_directory(self, directory: str) -> Dict:
+        """
+        Process all task files in a directory
+        """
+        cprint(f"\n[*] Processing directory: {directory}", Colors.BLUE)
+        
+        task_files = []
+        extensions = ['.txt', '.md', '.task', '.ctf', '.json', '.yml']
+        
+        for ext in extensions:
+            task_files.extend(Path(directory).glob(f'*{ext}'))
+        
+        if not task_files:
+            cprint("[-] No task files found", Colors.RED)
+            return {}
+        
+        cprint(f"[+] Found {len(task_files)} task file(s)", Colors.GREEN)
+        
+        for task_file in task_files:
+            cprint(f"\n[*] Processing: {task_file.name}", Colors.CYAN)
+            result = self.hunter.hunt_from_file(str(task_file))
+            self.results[str(task_file)] = result
+        
+        return self.results
+    
+    def process_files(self, files: List[str]) -> Dict:
+        """
+        Process multiple task files
+        """
+        for filepath in files:
+            if os.path.exists(filepath):
+                cprint(f"\n[*] Processing: {filepath}", Colors.CYAN)
+                result = self.hunter.hunt_from_file(filepath)
+                self.results[filepath] = result
+            else:
+                cprint(f"[-] File not found: {filepath}", Colors.RED)
+        
+        return self.results
+
 # ============================[ MAIN ]================================
 
 class CTF_Hunter:
     def __init__(self):
         self.hunter = FlagHunter()
+        self.batch = BatchProcessor()
         self.running = True
         signal.signal(signal.SIGINT, self.signal_handler)
     
@@ -842,20 +874,22 @@ class CTF_Hunter:
         print(f"""
 {Colors.BLUE}{'='*55}{Colors.WHITE}
 {Colors.BOLD}CTF_Hunter v{VERSION}{Colors.WHITE}
-{Colors.CYAN}File Input | Live Output | No Storage{Colors.WHITE}
-{Colors.YELLOW}Author: {AUTHOR} | Score: {SCORE}{Colors.WHITE}
+{Colors.CYAN}File Input | Batch Processing | Live Output{Colors.WHITE}
+{Colors.YELLOW}Author: {AUTHOR}{Colors.WHITE}
 {Colors.BLUE}{'='*55}{Colors.WHITE}
-{Colors.GREEN}[1] Hunt from File (Task File){Colors.WHITE}
-{Colors.GREEN}[2] Hunt Single Target{Colors.WHITE}
-{Colors.GREEN}[3] Hunt with Question{Colors.WHITE}
-{Colors.GREEN}[4] Decrypt Flag{Colors.WHITE}
-{Colors.RED}[5] Exit{Colors.WHITE}
+{Colors.GREEN}[1] Hunt from File (Single){Colors.WHITE}
+{Colors.GREEN}[2] Hunt from Directory (Batch){Colors.WHITE}
+{Colors.GREEN}[3] Hunt Multiple Files (Batch){Colors.WHITE}
+{Colors.GREEN}[4] Hunt Single Target{Colors.WHITE}
+{Colors.GREEN}[5] Hunt with Question{Colors.WHITE}
+{Colors.GREEN}[6] Decrypt Flag{Colors.WHITE}
+{Colors.RED}[7] Exit{Colors.WHITE}
 """)
     
     def run(self):
         print_banner()
-        cprint("[*] CTF_Hunter v5.2 - File Input & Task Analysis", Colors.CYAN)
-        cprint("[*] Parse task files | Auto-process | Live results", Colors.DIM)
+        cprint("[*] CTF_Hunter v5.3 - Ultimate CTF Automation", Colors.CYAN)
+        cprint("[*] File Input | Batch Processing | Live Output", Colors.DIM)
         
         while self.running:
             self.show_menu()
@@ -872,19 +906,50 @@ class CTF_Hunter:
                     cprint("[-] File not found", Colors.RED)
                 
             elif choice == '2':
+                directory = input("[>] Directory path: ").strip()
+                if os.path.exists(directory) and os.path.isdir(directory):
+                    results = self.batch.process_directory(directory)
+                    print("\n[+] Summary:")
+                    cprint(f"  Total files: {len(results)}", Colors.CYAN)
+                    total = sum(r.get('total_tasks', 0) for r in results.values())
+                    success = sum(r.get('successful', 0) for r in results.values())
+                    cprint(f"  Total tasks: {total}", Colors.CYAN)
+                    cprint(f"  Successful: {success}", Colors.GREEN)
+                else:
+                    cprint("[-] Directory not found", Colors.RED)
+                
+            elif choice == '3':
+                print("[*] Enter file paths (one per line, empty to finish):")
+                files = []
+                while True:
+                    filepath = input("[>] ").strip()
+                    if not filepath:
+                        break
+                    files.append(filepath)
+                
+                if files:
+                    results = self.batch.process_files(files)
+                    print("\n[+] Summary:")
+                    cprint(f"  Total files: {len(results)}", Colors.CYAN)
+                    total = sum(r.get('total_tasks', 0) for r in results.values())
+                    success = sum(r.get('successful', 0) for r in results.values())
+                    cprint(f"  Total tasks: {total}", Colors.CYAN)
+                    cprint(f"  Successful: {success}", Colors.GREEN)
+                
+            elif choice == '4':
                 target = input("[>] Target: ").strip()
                 platform = input("[>] Platform (auto/hackthebox/tryhackme/bugcrowd/vulnhub/picoctf/overthewire): ").strip() or 'auto'
                 brute = input("[>] Brute-force? (Y/n): ").strip().lower() != 'n'
                 self.hunter.hunt(target, platform, brute_force=brute)
                 
-            elif choice == '3':
+            elif choice == '5':
                 target = input("[>] Target: ").strip()
                 platform = input("[>] Platform: ").strip() or 'auto'
                 question = input("[>] Question/Description: ").strip()
                 brute = input("[>] Brute-force? (Y/n): ").strip().lower() != 'n'
                 self.hunter.hunt(target, platform, question, brute_force=brute)
                 
-            elif choice == '4':
+            elif choice == '6':
                 data = input("[>] Encoded flag: ").strip()
                 platform = input("[>] Platform: ").strip() or 'auto'
                 result = MultiLayerDecryption().decrypt(data, platform)
@@ -894,7 +959,7 @@ class CTF_Hunter:
                 else:
                     cprint("[-] Failed to decrypt", Colors.RED)
                 
-            elif choice == '5':
+            elif choice == '7':
                 cprint("[*] Goodbye", Colors.GREEN)
                 break
             else:
@@ -903,15 +968,41 @@ class CTF_Hunter:
 # ============================[ COMMAND LINE ]================================
 
 def main():
-    parser = argparse.ArgumentParser(description="CTF_Hunter v5.2 - File Input & Task Analysis")
+    parser = argparse.ArgumentParser(description="CTF_Hunter v5.3 - Ultimate CTF Automation")
     parser.add_argument("-f", "--file", help="Task file to process")
+    parser.add_argument("-d", "--directory", help="Directory with task files")
     parser.add_argument("-t", "--target", help="Target URL/IP/File")
     parser.add_argument("-p", "--platform", default="auto", help="Platform")
     parser.add_argument("-q", "--question", help="Question/Description")
-    parser.add_argument("-d", "--decrypt", help="Decrypt encoded flag")
+    parser.add_argument("--decrypt", help="Decrypt encoded flag")
     parser.add_argument("--no-brute", action="store_true", help="Disable brute-force")
+    parser.add_argument("--batch", nargs='+', help="Multiple task files to process")
     
     args = parser.parse_args()
+    
+    if args.directory:
+        print_banner()
+        batch = BatchProcessor()
+        results = batch.process_directory(args.directory)
+        print("\n[+] Summary:")
+        cprint(f"  Total files: {len(results)}", Colors.CYAN)
+        total = sum(r.get('total_tasks', 0) for r in results.values())
+        success = sum(r.get('successful', 0) for r in results.values())
+        cprint(f"  Total tasks: {total}", Colors.CYAN)
+        cprint(f"  Successful: {success}", Colors.GREEN)
+        sys.exit(0)
+    
+    if args.batch:
+        print_banner()
+        batch = BatchProcessor()
+        results = batch.process_files(args.batch)
+        print("\n[+] Summary:")
+        cprint(f"  Total files: {len(results)}", Colors.CYAN)
+        total = sum(r.get('total_tasks', 0) for r in results.values())
+        success = sum(r.get('successful', 0) for r in results.values())
+        cprint(f"  Total tasks: {total}", Colors.CYAN)
+        cprint(f"  Successful: {success}", Colors.GREEN)
+        sys.exit(0)
     
     if args.file:
         print_banner()
